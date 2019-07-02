@@ -30,8 +30,11 @@ class User extends Model {
     return bcrypt.compare(password, this.password_hash);
   }
 
-  teste() {
-    console.log(this);
+  // significa que eu tenho o id do file dentro de user
+  static associate(models) {
+    this.belongsTo(models.File, {
+      foreignKey: 'avatar_id',
+    });
   }
 }
 
