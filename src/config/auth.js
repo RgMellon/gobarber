@@ -1,4 +1,4 @@
 export default {
-  hash: '6e58a97594209d848211963168ae43a8',
+  hash: process.env.APP_SECRET,
   expiresIn: '7d',
 };

@@ -1,9 +1,15 @@
 import * as Yupi from 'yup';
-import { startOfHour, parseISO, isBefore } from 'date-fns';
+import { startOfHour, parseISO, isBefore, format, subHours } from 'date-fns';
+import pt from 'date-fns/locale/pt';
 
 import Appointment from '../../app/models/Appointment';
 import User from '../../app/models/User';
 import File from '../../app/models/File';
+
+import Notification from '../schemas/Notification';
+
+import CancellationMail from '../Jobs/CancellationMail';
+import Queue from '../../lib/Queue';
 
 class AppointmentController {
   async index(req, res) {
@@ -31,6 +37,7 @@ class AppointmentController {
 
     return res.json(appointments);
   }
+
   async store(req, res) {
     const schema = Yupi.object().shape({
       provider_id: Yupi.number().required(),
@@ -45,6 +52,8 @@ class AppointmentController {
 
     const { provider_id, date } = req.body;
 
+    if (req.userId === provider_id)
+      return res.json({ message: 'Provider cant register yourself' });
     /**
      *  Check if provide_is a provider
      */
@@ -94,6 +103,69 @@ class AppointmentController {
       user_id: req.userId,
       provider_id,
       date,
+    });
+
+    /**
+     * Notify appointment provider
+     */
+
+    const user = await User.findByPk(req.userId);
+    const formattedDate = format(
+      hourStart,
+      "'dia' dd 'de' MMMM', às' H:mm'h'",
+      { locale: pt }
+    );
+
+    await Notification.create({
+      content: `Novo agendamento de ${user.name} para ${formattedDate}`,
+      user: provider_id,
+    });
+
+    return res.json(appointment);
+  }
+
+  async delete(req, res) {
+    const appointment = await Appointment.findByPk(req.params.id, {
+      include: [
+        {
+          model: User,
+          as: 'provider',
+          attributes: ['name', 'email'],
+        },
+        {
+          model: User,
+          as: 'user',
+          attributes: ['name'],
+        },
+      ],
+    });
+
+    if (appointment.user_id !== req.userId) {
+      return res.status(401).json({
+        error: "You don't have permission to cancel this appointment",
+      });
+    }
+
+    // aqui n precisa usar o parseIso pois ja vem com esse formato do banco.
+    const dateWithSub = subHours(appointment.date, 2);
+
+    // 13:00 horario marcado
+    // dateWithSub retira duas horas, ficando : 11:00,
+    // o now é o horario do pc, se fosse por exemplo 12:00, ja estaria fora do tempo
+    // se o date with sub for antes da data atual, ou seja 11:00 < 12: 00
+    // o horario dele já passou
+    if (isBefore(dateWithSub, new Date())) {
+      return res.status(401).json({
+        message: 'You can only cancel appointments 2 hours in advance',
+      });
+    }
+
+    appointment.canceled_at = new Date();
+
+    await appointment.save();
+
+    await Queue.add(CancellationMail.key, {
+      appointment,
     });
 
     return res.json(appointment);
