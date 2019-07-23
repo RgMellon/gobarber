@@ -1,10 +1,12 @@
 import * as Yupi from 'yup';
-import { startOfHour, parseISO, isBefore, format, subHours } from 'date-fns';
+import {
+  startOfHour, parseISO, isBefore, format, subHours,
+} from 'date-fns';
 import pt from 'date-fns/locale/pt';
 
-import Appointment from '../../app/models/Appointment';
-import User from '../../app/models/User';
-import File from '../../app/models/File';
+import Appointment from '../models/Appointment';
+import User from '../models/User';
+import File from '../models/File';
 
 import Notification from '../schemas/Notification';
 
@@ -52,8 +54,7 @@ class AppointmentController {
 
     const { provider_id, date } = req.body;
 
-    if (req.userId === provider_id)
-      return res.json({ message: 'Provider cant register yourself' });
+    if (req.userId === provider_id) return res.json({ message: 'Provider cant register yourself' });
     /**
      *  Check if provide_is a provider
      */
@@ -94,9 +95,7 @@ class AppointmentController {
     });
 
     if (checkAvailability) {
-      return res
-        .status(400)
-        .json({ error: 'Appointment date is not available' });
+      return res.status(400).json({ error: 'Appointment date is not available' });
     }
 
     const appointment = await Appointment.create({
@@ -110,11 +109,7 @@ class AppointmentController {
      */
 
     const user = await User.findByPk(req.userId);
-    const formattedDate = format(
-      hourStart,
-      "'dia' dd 'de' MMMM', às' H:mm'h'",
-      { locale: pt }
-    );
+    const formattedDate = format(hourStart, "'dia' dd 'de' MMMM', às' H:mm'h'", { locale: pt });
 
     await Notification.create({
       content: `Novo agendamento de ${user.name} para ${formattedDate}`,
